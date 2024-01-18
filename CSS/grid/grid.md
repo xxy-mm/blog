@@ -1,5 +1,7 @@
 # CSS Grid
 
+> references: [https://css-tricks.com/snippets/css/complete-guide-grid/](https://css-tricks.com/snippets/css/complete-guide-grid/)
+
 ## terminology
 
 - grid container: Element with `display: grid`.
@@ -10,7 +12,6 @@
 - grid area: The total space surrounded by four grid lines.
 
 > Question: What's the difference between `item` and `cell`?
-> [complete grid guide](https://css-tricks.com/snippets/css/complete-guide-grid/)
 
 ## container properties
 
