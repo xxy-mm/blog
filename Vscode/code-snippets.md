@@ -58,6 +58,6 @@ the setter of the prop will be capitalized after you press the tab key.
    "const [$1,set${1/(\\w)/${1:/upcase}/}] = useState<$3>($4);$0"
   ],
   "description": "Create a react useState hook"
- },
+ }
 }
 ```
