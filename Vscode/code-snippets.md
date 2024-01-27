@@ -7,7 +7,6 @@
 - typescriptreact
 - ...
 
-
 ## how can I get the file name
 
 use `${TM_FILENAME}`. Notice that the filename will appear with extensions. You can use `${TM_FILENAME/(\\.\\w+)//}` to remove that.
@@ -17,7 +16,6 @@ use `${TM_FILENAME}`. Notice that the filename will appear with extensions. You 
 `$1` will be the first cursor point. When you press `Tab` key, it jumps to `$2`. The final position you can jump to is `$0`  
 
 You can also add label to these positions, using the syntax `${1: labelName}`, replace labelName to whatever label you want.
-
 
 ## example
 
@@ -45,4 +43,21 @@ Here's a simple example, when I type "rfc" in a tsx file, it will generate a com
  }
 }
 
+```
+
+## Infer the previous placeholder and do transformation
+
+the setter of the prop will be capitalized after you press the tab key.
+
+```json
+{
+  "React useState hook": {
+  "scope": "typescriptreact",
+  "prefix": "ust",
+  "body": [
+   "const [$1,set${1/(\\w)/${1:/upcase}/}] = useState<$3>($4);$0"
+  ],
+  "description": "Create a react useState hook"
+ },
+}
 ```
