@@ -80,7 +80,6 @@ struct ChildView: View {
         let record = Record(title: "first record",
             content: "record content",
             createTime: Date.now,
-            tags: [Tag(name: "test")])
         // 3.
         context.insert(record)
     }
