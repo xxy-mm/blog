@@ -1,0 +1,199 @@
+---
+layout: post
+title: "SwiftData（一）"
+---
+
+# 定义 SwfitData
+
+**要使用 SwiftData， 需要 iOS17+, macOS 14.0+**
+
+## 创建数据模型
+
+### 创建 Model
+
+1. 导入`SwiftData`
+2. 为类添加 `@Model` 宏
+
+
+```swift
+import Foundation
+import SwiftData
+
+@Model
+class Record {
+    var title: String
+    var content: String
+    var createTime: Date
+    
+    init(title: String, content: String, createTime: Date) {
+        self.title = title
+        self.content = content
+        self.createTime = createTime
+    }
+}
+```
+
+>  默认情况下， SwiftData 会包含类中所有非计算（noncomputed）属性。属性可以是基本类型，如Bool、Int和String，以及复杂的值类型，如结构、枚举和其他符合 `Codable` 协议的值类型。
+
+
+## 配置模型的存储
+
+```swift
+import SwiftUI
+import SwiftData
+
+@main
+struct Example: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .modelContainer(for: [
+                    Record.self
+                ])
+        }
+    }
+}
+```
+
+## 添加第一条数据
+
+1. 获取 modelContext
+2. 创建 Record 实例
+3. 添加 Record 到 SwiftData
+
+```swift
+import SwiftUI
+import SwiftData
+
+struct ChildView: View {
+    // 1.
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        Button("Add New Record"){
+            addRecord()
+        }
+    }
+
+    func addRecord() {
+        // 2.
+        let record = Record(title: "first record",
+            content: "record content",
+            createTime: Date.now,
+            tags: [Tag(name: "test")])
+        // 3.
+        context.insert(record)
+    }
+
+}
+```
+上面示例中向 SwiftData 中添加了一条新的 Record。
+
+**注意，如果想在 Preview 中预览，需要在 Preview 中为当前 View 指定 modelContainer，否则无法运行并将报错:**
+
+```swift
+#Preview {
+    // 配置存储方式为存储在内存中，应用刷新或重启后数据将被丢弃
+    let config = try! ModelConfiguration(isStoredInMemoryOnly: true)
+    // 手动创建 container
+    let container = try! ModelContainer(for: Recording.self, configurations: config)
+    // 记得 return
+    return ChildView()
+    .modelContainer(container)
+}
+```
+
+## 查找数据
+
+1. 定义查找结果保存到哪个属性
+2. 使用 `@Query` 宏修饰属性
+3. 为 `Query` 宏指定规则
+
+```swift
+import SwiftUI
+import SwiftData
+
+struct ChildView: View {
+    // 1. 定义 records 属性，保存查找结果
+    // 2. 使用 @Query 宏修饰 records 属性
+    // 3. 为 @Query 宏指定规则： 按创建时间排序，从大到小排序
+    @Query(sort: \.createTime, order: .reverse) var records: [Record]
+    
+    var body: some View {
+        List {
+            ForEach(records) { record in
+                Text(record.title)
+            }
+        }
+    }
+}
+```
+
+## 修改数据
+
+```swift
+import SwiftUI
+import SwiftData
+
+struct ChildView: View {
+
+    @Query(sort: \.createTime, order: .reverse) var records: [Record]
+    @Environment(\.modelContext) private var modelContext
+    var body: some View {
+        List {
+            ForEach(records) { record in
+                Button{
+                    updateRecord(record: record, newTitle: "newTestTitle")
+                }label:{
+                    Text(record.title)
+                }  
+            } 
+        }   
+    }
+
+    func updateRecord(record: Record, newTitle: String) {
+        // 修改 title 属性
+        record.title = newTitle
+        // 保存修改
+        modelContext.save()
+    }
+
+}
+
+```
+
+## 删除数据
+
+```swift
+import SwiftUI
+import SwiftData
+
+struct ChildView: View {
+    @Query(sort: \.createTime, order: .reverse) var records: [Record]
+    @Environment(\.modelContext) private var modelContext
+
+    var body: some View {
+        List {
+            ForEach(records) { record in
+                Button{
+                    updateRecord(record: record, newTitle: "newTestTitle")
+                }label:{
+                    Text(record.title)
+                }  
+            }
+            .onDelete(perform: deleteRecord) 
+        }   
+    }
+
+    func deleteRecord(IndexSet: indexes) {
+        for index in indexes {
+            // 删除列表中相应的record
+            context.delete(records[index])
+        }
+    }
+
+    ...
+
+}
+
+```
