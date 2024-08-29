@@ -1,0 +1,124 @@
+---
+layout: post
+title: "PyTorch构建和训练一个基本的神经网络(三)"
+---
+
+> 在上一篇文章的末尾，我们简单的创建了一个 tensor 做为测试。这样的行为很不专业。实际工作中，我们通常把一个数据集分割为两部分，一部分用于训练，另一部分用于测试。而这个分割数据集的工作可以通过 `scikit-learn` 轻松完成。
+
+## 分割测试数据集
+
+要从数据集中分离出训练集和测试集，可以在数据处理阶段将数据划分为训练集和测试集，然后分别创建对应的 `TensorDataset` 和 `DataLoader`。这通常是通过使用 `train_test_split` 函数来完成的。下面是一个完整的示例，展示如何从数据集中获取训练集和测试集，并使用 `DataLoader` 加载它们
+
+## 步骤概述
+
+1. 划分数据集: 使用 `train_test_split` 将数据集分成训练集和测试集。首先安装 sklearn: `pip install sciket-learn`
+2. 创建 `TensorDataset`: 将训练集和测试集分别转换为 `TensorDataset`。
+3. 创建 `DataLoader`: 使用 `DataLoader` 将 `TensorDataset` 打包，便于后续的模型训练和测试。
+
+## 代码示例
+
+```python
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
+
+# 生成一些随机数据作为示例
+X = torch.randn(100, 3)  # 100个样本，每个样本有3个特征
+y = torch.randn(100, 1)  # 100个样本的目标值
+
+# 将数据集划分为训练集和测试集，通常按8:2或7:3的比例划分
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# 将训练集和测试集分别转换为 TensorDataset
+train_dataset = TensorDataset(X_train, y_train)
+test_dataset = TensorDataset(X_test, y_test)
+
+# 使用 DataLoader 加载训练集和测试集
+train_loader = DataLoader(train_dataset, batch_size=30, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=30, shuffle=False)
+
+# 现在 train_loader 和 test_loader 分别包含训练和测试数据集
+# 你可以像训练集一样使用 test_loader 进行模型测试
+```
+
+其中：
+
+- `train_test_split`:
+  - `train_test_split` 是来自 `sklearn.model_selection` 的函数，它根据指定的比例（如 `test_size=0.2` 表示 20% 的数据用于测试集，80% 的数据用于训练集）将数据集划分为训练集和测试集。
+  - `random_state=42` 是一个随机种子，确保每次运行代码时数据划分的结果一致。
+
+- `TensorDataset`:
+  - `TensorDataset` 将特征 `X` 和目标值 `y` 进行配对，方便后续的 `DataLoader` 操作。
+  - `train_dataset` 包含训练数据，而 `test_dataset` 包含测试数据。
+
+- `DataLoader`:
+  - `DataLoader` 用于将数据集分批加载，并提供数据打乱（`shuffle`）和并行处理（`num_workers`）等功能。
+  - `train_loader` 用于训练模型时从训练集中批量提取数据，而 `test_loader` 用于评估模型时从测试集中批量提取数据。
+
+## 训练和测试模型
+
+现在可以使用 `train_loader` 进行模型的训练，并使用 `test_loader` 来评估模型的性能。
+
+### 示例: 模型训练和测试
+
+```python
+# 我们的简单的神经网络模型
+import torch.nn as nn
+import torch.optim as optim
+
+class SimpleNN(nn.Module):
+    def __init__(self):
+        super(SimpleNN, self).__init__()
+        self.fc1 = nn.Linear(3, 5)  # 输入3个特征，输出5个特征
+        self.fc2 = nn.Linear(5, 1)  # 输入5个特征，输出1个特征
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+# 初始化模型、损失函数和优化器
+model = SimpleNN()
+criterion = nn.MSELoss()  # 使用均方误差损失
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+# 训练模型
+for epoch in range(100):  # 训练100个epoch
+    model.train()  # 设置模型为训练模式
+    for batch_X, batch_y in train_loader:
+        optimizer.zero_grad()  # 梯度清零
+        output = model(batch_X)  # 前向传播
+        loss = criterion(output, batch_y)  # 计算损失
+        loss.backward()  # 反向传播计算梯度
+        optimizer.step()  # 更新模型参数
+    
+    print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+
+# 测试模型
+model.eval()  # 设置模型为评估模式
+test_loss = 0.0
+with torch.no_grad():  # 在测试时不需要计算梯度
+    for batch_X, batch_y in test_loader:
+        output = model(batch_X)
+        loss = criterion(output, batch_y)
+        test_loss += loss.item()
+
+print(f'Test Loss: {test_loss / len(test_loader)}')
+```
+
+**其中：**
+
+1. 模型训练:
+   - `model.train()`: 切换模型到训练模式（启用 dropout 和 batch normalization 等）。
+   - `optimizer.zero_grad()`: 每个批次之前清除之前计算的梯度。
+   - `loss.backward()`: 反向传播，计算梯度。
+   - `optimizer.step()`: 使用计算出的梯度更新模型参数。
+
+2. 模型测试:
+   - `model.eval()`: 切换模型到评估模式（禁用 dropout 和 batch normalization 等）。
+   - `torch.no_grad()`: 禁用梯度计算，加快计算速度并节省内存。
+   - 计算测试集上的损失: 将测试集的平均损失输出，用于评估模型性能。
+
+### 总结
+
+通过使用 `train_test_split` 将数据集划分为训练集和测试集，并将它们分别包装到 `TensorDataset` 和 `DataLoader` 中，你可以轻松地训练和评估你的模型。`train_loader` 和 `test_loader` 让你在批量处理数据时可以更高效地进行训练和测试。
