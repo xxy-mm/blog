@@ -1,0 +1,364 @@
+---
+layout: post
+title: "PyTorch构建和训练一个基本的神经网络(四)"
+---
+
+> 通过前面几篇的学习，我们已经大概了解了构建神经网络的基本过程。今天我们就说一下如何将模型保存起来。保存好的模型，可以在其他项目中开箱即用。
+既然要保存模型，那我们今天就顺便实践一下，做个简单的实际生活中可以使用的小模型，保存起来，并在另一个文件中，加载使用。
+
+具体步骤：
+
+1. 寻找数据。
+2. 创建 `Dataset` 和 `DataLoader`
+3. 创建模型
+4. 训练模型
+5. 测试模型
+6. 保存模型
+7. 加载模型
+
+> 有些步骤，就一两行代码足矣。
+
+## 寻找数据集
+
+博主已经代劳，直接下载即可。150行数据，完全免费，无需积分。
+[点击下载](https://download.csdn.net/download/2301_80026621/89698037)
+下载后保存为 `iris.csv`
+
+## 创建训练数据集和测试数据集
+
+此文件包含151行数据，每行5列。其中第一行为标题，不会加载到数据集中。
+
+前四列数据为特征数据:
+
+- sepal.length: 花萼长度
+- sepal.width: 花萼宽度
+- petal.length: 花瓣长度
+- petal.width: 花瓣宽度
+
+最后一列为分类，可以理解为前面四个特征数据对应的分类。
+
+- variety: 植物种类
+
+这些数据描述了不同尺寸的花萼和花瓣所属的植物分类。当前数据中只有三个分类，实际生活中有多少种我不必说了吧？这只是一个 demo 数据而已。
+
+你看，这文件中的数据就是我们常说的训练用到的源数据，很容易理解吧？进入下一步！
+
+## 创建 Dataset 和 DataLoader
+
+还记得前面讲过的如何使用已有数据创建数据集吗？两个工具：
+
+- TensorDataset
+- DataLoader
+
+以及如何将数据集分割成训练集和测试集的工具：
+
+- train_test_split
+
+代码来了：
+
+```python
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+import pandas as pd
+
+# 我是在 jupyter 中运行， 和 csv 文件放在同一文件夹下
+df_iris  = pd.read_csv("iris.csv")
+
+df_iris.head()
+```
+
+输出：
+
+```csv
+sepal.length sepal.width petal.length petal.width variety
+0 5.1 3.5 1.4 0.2 Setosa
+1 4.9 3.0 1.4 0.2 Setosa
+2 4.7 3.2 1.3 0.2 Setosa
+3 4.6 3.1 1.5 0.2 Setosa
+4 5.0 3.6 1.4 0.2 Setosa
+```
+
+OK了！
+
+不过别高兴的太早，最后一列数据是字符串类型的，我们机器学习中要使用 `tensor`， `tensor` 只能是数字，咋整？
+
+也很简单，我们把字符串先转成数字，再去训练不就得了吗？
+
+纵览整个数据文件，发现 variety 只有三种, 不如我们就把他们分别替换为 0， 1， 2：
+
+- Setosa: 0
+- Versicolor: 1
+- Virginica: 2
+
+我们直接定义个数组就可以，但是如果以后分类多了，顺序万一搞错了就难办。还是创建个字典吧！
+
+```python
+variety_dic = {
+   "Setosa": 0,
+   "Versicolor": 1,
+   "Virginica": 2,
+}
+```
+
+有了这个字典，我们使用 pandas 就可以很方便的将数据中的字符串替换成数字。
+
+```python
+df_iris['variety'] = df_iris['variety'].replace(variety_dic)
+df_iris.head()
+```
+
+输出：
+
+```txt
+sepal.length sepal.width petal.length petal.width variety
+0 5.1 3.5 1.4 0.2 0
+1 4.9 3.0 1.4 0.2 0
+2 4.7 3.2 1.3 0.2 0
+3 4.6 3.1 1.5 0.2 0
+4 5.0 3.6 1.4 0.2 0
+```
+
+现在，我们开始创建数据集。数据集由两部分组成：
+
+- 特征
+- 答案
+
+iris.csv 中，特征就是上面所说的花萼和花瓣的长度和宽度，而分类就是答案。训练其实就是让模型学习什么样的特征对应什么样的答案，是个学习的过程，知道为什么叫机器学习了吧。
+
+我们首先把特征和答案分离：
+
+```python
+# 特征
+X = df_iris.drop('variety', axis=1).astype('float32')
+# 答案
+y = df_iris['variety'].astype('int64')
+```
+
+> 我们需要指定数据的类型，否则后面的函数会因为类型不匹配而出错。
+
+好了，特征，答案分离完成。开始创建 dataset 和 dataloader:
+
+```python
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
+
+
+# 将数据集转换为 TensorDataset
+X = torch.tensor(X.values)
+y = torch.tensor(y.values)
+
+# 分割数据为训练数据和测试数据
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+
+# 分别创建 dataset
+dataset = TensorDataset(X_train, y_train)
+test_dataset = TensorDataset(X_test, y_test)
+
+# 分别创建 dataloader
+dataloader = DataLoader(dataset, batch_size=30, shuffle=True)
+test_dataloader = DataLoader(test_dataset, batch_size=30, shuffle=True)
+```
+
+至此，本小节工作完成。
+
+## 创建模型，自定义神经网络 layer
+
+这里我们假设需要创建一个模型，它具有4层：
+
+1. 第一层， 输入层，接收我们的特征。 iris.csv 文件中，每一行数据都有四个特征，所以，这一层包含4个神经单元，每个单元代表一个特征。经过处理，传递给第二层。
+2. 第二层，隐藏层，第一层的输入，经过处理传递到这一层。为什么叫隐藏层，因为其对用户时不可见的。你能看见输入层，因为你要输入数据，你能看见输出层，因为你要看到结果。但中间这些，经过了多少层处理，用户并不知道。所以叫隐藏层，对用户来说时隐藏的。处理后传递给下一层。
+3. 第三层，隐藏层，接收第二层的输入，再做处理。处理完交给下一层。
+4. 输出层。这一层就是不是隐藏层了，因为用户可以看到这一层输出的结果。也是最终的处理结果。
+
+有人说，为什么有四层？不是3层，5层？
+
+答：这是由编写模型的人决定的，层数多少，每层使用什么算法，如何采样，都是需要经过分析才能决定的，日后深入研究。
+
+下面是个简单的示意图，网上找的，和本模型的层数一样，但是每层的神经单元个数不同：
+
+![alt text](image-1.png)
+
+这个图中有四层Layer, 包括一个输入层，两个隐藏层，和一个输出层。各层的单元数依次为 4,5,5,4。
+
+看到这里大家应该明白了，下面开始创建我们的模型：
+
+```python
+import torch.nn as nn
+import torch.nn.functional as F
+
+# 创建一个模型，继承 nn.Module
+class Model(nn.Module):
+  # 输入层 (4 个特征)
+  #  -> 隐藏层 1 (几个神经单元) 
+  # --> 隐藏层 2 (几个神经单元) 
+  # --> 输出层 (3个分类)
+  def __init__(self, in_features=4, h1=8, h2=9, out_features=3):
+    super(Model, self).__init__()
+    self.fc1 = nn.Linear(in_features, h1)
+    self.fc2 = nn.Linear(h1, h2)
+    self.out = nn.Linear(h2, out_features)
+
+
+  def forward(self, x):
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
+    x = self.out(x)
+    return x
+```
+
+可以看到，我们继承 `nn.Module`，并在构造函数中传入了 4 个参数：
+
+- 输入层神经单元个数， 默认4个
+- 第一个隐藏层单元个数，默认8个
+- 第二个隐藏层 单元个数 默认9个
+- 输出层 单元个数 默认3个
+
+在构造函数中，我们使用了 `nn.Linear` 函数链接我们的层。这个函数将前一层每个单元的输出，分别链接到后一层的所有单元上。
+
+在 forward 方法中，我们使用 `F.relu` 方法，处理输入层的数据，并最终得到输出。
+
+可以看到，构造函数定义了 layer（层）， forward 方法定义了每个层如何处理数据，最终得到输出。
+
+本小节到此完成。
+
+## 训练模型
+
+现在我们要开始训练模型。训练模型关键点有三：
+
+1. 创建模型实例
+2. criterion: 损失函数
+3. optimizer: 随机梯度下降优化器
+
+听起来很高大上，通俗的解释就是赋予模型知错就改，天天向上的东西。俗话说：学而不思则惘，错了要涨记性，否则就要挨打。可惜机器不能打，容易坏，你得通过特定的方法教育它，就是这俩函数。
+
+扯远了，根据学习的东西和方式不同，用来修正和优化的函数也不同。本例子使用如下：
+
+```python
+model = Model()
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+```
+
+创建好损失函数和优化器后，就可以开始训练模型了：
+
+```python
+
+losses = []
+for epoch in range(50):
+  for batch_x, batch_y in dataloader:
+    output = model(batch_x)
+    loss = criterion(output, batch_y)
+    if epoch % 10 == 0:
+      losses.append(loss.item())
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+```
+
+让我们查看一下训练结果：
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+plt.plot(range(len(losses)), losses)
+plt.ylabel('loss/error')
+plt.xlabel('epoch')
+plt.show()
+```
+
+![alt text](image.png)
+
+可以看到，我们的损失值（loss)随着训练周期的增长，不断降低，最后到 0.2 以下。此时，我们的模型已经很聪明了！
+
+本小节完成！
+
+## 测试模型
+
+测试模型和训练模型有两个重要区别：
+
+1. 需要告诉模型，退出训练模式。实现方式： 使用 `model.eval()`
+2. 需要告诉模型，不要进行梯度计算，因为测试是考试阶段，不是学习阶段。
+
+```python
+model.eval()
+test_loss = 0.0
+with torch.no_grad():
+  for i, (batch_x, batch_y) in enumerate(test_dataloader):
+    output=model(batch_x)
+    loss = criterion(output, batch_y)
+    test_loss+=loss.item()
+
+print(f"Test Loss: {test_loss/len(test_dataloader)}") 
+```
+
+输出：
+
+```python
+Test Loss: 0.060986459255218506
+```
+
+据说 loss 在 0.2 以下就算几个了，这个测试结果很不错！说明我们的model已经很聪明了，赶紧保存下来，就可以在项目中使用了。
+
+## 保存模型
+
+关键点：
+
+1. 调用 `torch.save` 方法
+2. model.state_dict()
+3. 保存路径
+
+```python
+torch.save(model.state_dict(), 'iris_model.pt')
+```
+
+在 PyTorch 中，`state_dict` 是一个非常重要的概念，主要用于保存和加载模型的参数。`state_dict` 是一个 Python 字典对象，它将每一层的参数名称映射到对应的张量（Tensor）上。
+
+具体来说，`state_dict` 包含了模型（`torch.nn.Module` 类）的所有可学习参数（如权重和偏置），以及一些缓冲区（buffers，如均值和方差）等不参与学习的变量。
+
+### 主要用途
+
+1. **保存模型**：你可以通过保存 `state_dict` 来保存模型的参数，而不是保存整个模型对象。这样做的好处是，更灵活且文件更小。
+2. **加载模型**：可以通过加载 `state_dict` 来恢复模型参数。这在进行模型的迁移学习、继续训练或模型部署时特别有用。
+3. **部分加载模型**：你还可以只加载部分参数，或者在加载过程中进行一些参数的调整。
+
+### 注意事项
+
+- `state_dict` 的键通常是字符串，表示参数的层次结构，例如 `'layer1.weight'`，值是与之对应的tensor。
+- 在保存和加载 `state_dict` 时，模型的架构需要与保存时保持一致，否则加载时会报错。
+
+现在，在同级目录下应该出现一个 `iris_model.pt` 文件，保存模型完成。
+
+## 加载模型
+
+想要加载模型，我们需要以下两个东东：
+
+1. Model 类。我们想创建模型实例，就得有模型的类。
+2. 光有类还不够，我们还需要上面说的  state_dict
+3. 创建模型后，让模型退出训练模式。
+
+```python
+new_model = Model()
+new_model.load_state_dict(torch.load('iris_model.pt')) 
+model.eval()
+print(new_model)
+```
+
+输出：
+
+```txt
+Model(
+  (fc1): Linear(in_features=4, out_features=8, bias=True)
+  (fc2): Linear(in_features=8, out_features=9, bias=True)
+  (out): Linear(in_features=9, out_features=3, bias=True)
+)
+```
+
+可见，我们的 model 加载成功了，请慢用。
+
+> 保存和加载模型的方法不止一种，根据不同的使用环境择优选择。参考[保存和加载模型](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict)
+
+这是我们创建的第一个模型，值得纪念!
