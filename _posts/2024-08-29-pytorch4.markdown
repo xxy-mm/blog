@@ -343,7 +343,7 @@ torch.save(model.state_dict(), 'iris_model.pt')
 ```python
 new_model = Model()
 new_model.load_state_dict(torch.load('iris_model.pt')) 
-model.eval()
+new_model.eval()
 print(new_model)
 ```
 
