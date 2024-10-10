@@ -2,9 +2,9 @@
 layout: post
 title: "some VS any in Swift"
 ---
-Here’s the explanation converted into Markdown format:
 
-some vs any in Swift
+
+## some vs any in Swift
 
 In Swift, some and any are special keywords used for types conforming to protocols. However, they serve different purposes and are not interchangeable. Let’s explore their differences.
 
@@ -14,9 +14,9 @@ The some keyword is used to declare opaque types, which means the exact type is 
 
 Key Points:
 
- • The compiler knows the exact type but hides it from the caller.
- • The exact type is consistent across calls (the same concrete type is always returned).
- • Commonly used with SwiftUI (some View).
+- The compiler knows the exact type but hides it from the caller.
+- The exact type is consistent across calls (the same concrete type is always returned).
+- Commonly used with SwiftUI (some View).
 
 Example:
 
@@ -34,11 +34,11 @@ func createView() -> some View {
 
 The any keyword is used to define existential types, meaning the type can be any type that conforms to the specified protocol. The actual type is not known at compile time, and the object could be of different types as long as they conform to the protocol.
 
-Key Points:
+**Key Points:**
 
- • Dynamic dispatch is used at runtime (slower compared to some).
- • The type can vary across calls.
- • Useful for heterogeneous collections or dynamic behavior.
+- Dynamic dispatch is used at runtime (slower compared to some).
+- The type can vary across calls.
+- Useful for heterogeneous collections or dynamic behavior.
 
 Example:
 
@@ -49,8 +49,8 @@ func generateError() -> any Error {
 }
 ```
 
- • any Error means that the function can return any type that conforms to the Error protocol, such as NSError or custom Error types.
- • The exact type is unknown at compile time but resolved dynamically at runtime.
+- any Error means that the function can return any type that conforms to the Error protocol, such as NSError or custom Error types.
+- The exact type is unknown at compile time but resolved dynamically at runtime.
 
 Differences Between some and any
 
@@ -66,8 +66,8 @@ Can They Be Interchanged?
 
 No, some and any are not interchangeable. Here’s why:
 
- • some is for when you know the concrete type but want to hide it (useful for static optimizations and type consistency).
- • any is for when you don’t know or don’t care about the concrete type (useful for dynamic or heterogeneous collections).
+- some is for when you know the concrete type but want to hide it (useful for static optimizations and type consistency).
+- any is for when you don’t know or don’t care about the concrete type (useful for dynamic or heterogeneous collections).
 
 Example of Why They Can’t Be Interchanged:
 
@@ -89,11 +89,14 @@ func createError() -> any Error {
 
 When to Use some vs any
 
- • Use some when:
- • You want to return a concrete type that conforms to a protocol, but the caller doesn’t need to know the specific type.
- • You need performance optimization or consistency across calls.
- • Commonly used in SwiftUI for returning some View.
- • Use any when:
- • You need to return different types conforming to the same protocol.
- • You need dynamic behavior where the exact type is not known at compile time.
- • Useful in error handling (any Error), dynamic lists, or heterogeneous collections.
+ **Use some when:**
+
+- You want to return a concrete type that conforms to a protocol, but the caller doesn’t need to know the specific type.
+- You need performance optimization or consistency across calls.
+- Commonly used in SwiftUI for returning some View.
+
+**Use any when:**
+
+- You need to return different types conforming to the same protocol.
+- You need dynamic behavior where the exact type is not known at compile time.
+- Useful in error handling (any Error), dynamic lists, or heterogeneous collections.
