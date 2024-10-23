@@ -1,0 +1,228 @@
+---
+layout: post
+title: "SwiftData Versioned Schema"
+---
+
+## SwiftData Versioned Schema
+
+The article introduce how to use `SwiftData Versioned Schema`. It also tells how to turn a non-versioned model into versioned schema.
+
+### turn non-versioned model to versioned model
+
+Consider we have a model in our below:
+
+```swift
+import Foundation
+import SwiftData
+
+@Model
+final class Record {
+    var title: String
+    var content: String
+    var createTime: Date
+    
+    init(title: String, content: String, createTime: Date) {
+        self.title = title
+        self.content = content
+        self.createTime = createTime
+    }
+}
+```
+
+What if you want to update your model definition after the app has published?
+The answer is using `Versioned Schema`.
+
+Let's find out how to make your non-versioned model to versioned model.
+
+First, you should create a `Version Schema` enum, let's create a file called `AppVersionedSchema.swift` and add some code:
+
+```swift
+import SwiftData
+
+typealias Record = AppVersionedSchemaV2.Record
+
+enum AppVersionedSchemaV1: VersionedSchema {
+
+    static var models: [any PersistentModel.Type] {
+        [Record.self]
+    }
+    
+    static var versionIdentifier: Schema.Version = Schema.Version(0,0,1)
+
+    @Model
+    final class Record {
+        var title: String
+        var content: String
+        var createTime: Date
+        
+        init(title: String, content: String, createTime: Date) {
+            self.title = title
+            self.content = content
+            self.createTime = createTime
+        }
+    }
+}
+```
+
+there'are some key concepts we have to notice:
+
+1. the schema we created is an `enum` not a class or struct.
+2. the enum should conform the `VersionedSchema` protocol.
+3. the protocol requires us to define the `models` and `versionIdentifier` properties.
+4. you have to copy your model definition into the `VersionSchema` enum.
+5. you have to delete the original model definition.
+6. add typealias so your app can still find our `Record` model.
+
+The `models` property should include all models you may update in the future. Since we only have one model `Record` for now, we only include that model type.
+
+The `versionIdentifier` should be a unique version specified by the version numbers. In this case it is `0.0.1`.
+
+Now you have successfully turned your non-versioned model into a versioned model.
+
+### Do some migration
+
+#### Create the new version of schema
+
+Suppose we're going to make some updates now: add an `isFavorite` property of type `Bool?`.
+
+There wasn't such a property in our `Record` model. How to do this?
+
+let's add a new `VersionedSchema` below the `AppVersionedSchemaV1`, called `AppVersionedSchemaV2`:
+
+```swift
+enum AppVersionedSchemaV2: VersionedSchema {
+
+    static var models: [any PersistentModel.Type] {
+        [Record.self]
+    }
+    // note we changed the version number
+    static var versionIdentifier: Schema.Version = Schema.Version(0,1,0)
+
+    @Model
+    final class Record {
+        var title: String
+        var content: String
+        var createTime: Date
+        // changes here
+        var isFavorite: Bool?
+        
+
+        init(title: String, content: String, createTime: Date,/* changes here*/ isFavorite: Bool? = false) {
+            self.title = title
+            self.content = content
+            self.createTime = createTime
+            // changes here
+            self.isFavorite = isFavorite
+        }
+    }
+}
+```
+
+During the update, some very important rules must be **strictly** followed:
+
+1. you define the new property's type as `Optional`, in our case, we define the new property as `Bool?` not `Bool`.
+ This is very important since if you don't do so an error will occurred saying
+ "Cannot migrate store in-place: Validation error missing attribute values on mandatory destination attribute".
+ It's easy to understand: if the attribute is required(not optional), then a
+`Record` without the property is invalid(in the case the V1 Record are considered invalid)
+2. add the new property in the `init` function.(optional)
+3. in the body of the `init` function, init the property.(optional)
+
+Now our version2 schema is ready. let's migrate the data by using a `MigrationPlan`:
+
+#### Create the MigrationPlan
+
+```swift
+import SwiftData
+
+enum MigrationPlanV1toV2: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            AppVersionedSchemaV1.self,
+            AppVersionedSchemaV2.self,
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [migrateV1toV2]
+    }
+
+    static let migrateV1toV2 = MigrationStage.custom(fromVersion: AppVersionedSchemaV1.self, toVersion: AppVersionedSchemaV2.self) { context in
+        do {
+            let records = try context.fetch(FetchDescriptor<AppVersionedSchemaV1.Record>())
+            records.forEach{$0.title = $0.title.capitalized}
+            try context.save()
+        }catch{
+            print("Migration error: \(error.localizedDescription)")
+        }
+    } didMigrate: { context in
+        do {
+            let records = try context.fetch(FetchDescriptor<AppVersionedSchemaV2.Record>())
+            records.forEach { $0.isFavorite = true }
+            try context.save()
+            print("migration finished.") 
+        } catch {
+            print("migration error: \(error.localizedDescription)")
+        }
+    }
+}
+```
+
+1. first we create another enum which conforms to the `MigrationPlan` protocol, it has 2 required properties:
+    1. the `schemas` property tells which schemas are going to be migrated.
+    2. the `stages` property tells how many stage we're going to perform during this migration.
+2. we create a custom migration stage `migrateV1toV2`. Yes, this is created by us, not the part of the protocol, as far as it is a `MigrationStage`.
+since we only have this stage during our migration, we put it into the `stages` array.
+3. In the MigrationStage's init function, we tell the stage to migrate from `V1` to `V2`
+4. We first fetch all the old records(`AppVersionedSchemaV1.Record`) and update their title in the `willMigrate` closure.
+5. We update all the new records(`AppVersionedSchemaV2.Record`) set their `isFavorite` property to true(default value is false).
+
+Why don't we update all the properties at once in one closure?
+
+In our case, we can move the willMigrate's body into the didMigrate closure.
+But you should aware that:
+
+1. the willMigrate is executed before the migration, so you can only access old schema models there.
+2. the didMigrate is executed after the migration, so you can only access new schema models there.
+
+Now our migration plan is ready, lets pass it to the container and complete the migration.
+
+### Create the modelContainer
+
+```swift
+// ModelContainer+sample.swift
+import SwiftData
+
+extension ModelContainer {
+    static var sample: () throws -> ModelContainer = {
+        let schema = Schema([Record.self])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: false)
+        let container = try ModelContainer(for: schema, migrationPlan: MigrationPlanV1toV2.self, configurations: [configuration])
+        return container
+    }
+
+}
+// AppView.swift
+import SwiftUI
+import SwiftData
+
+@main
+struct Video2AudioApp: App {
+    private var modelContainer = try! ModelContainer.sample()
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .modelContainer(modelContainer)
+        }
+    }
+}
+```
+
+That's all!
+
+
+
+
+
+
+
