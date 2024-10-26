@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "SwiftData Error in Preview with @Previewable"
+title: "SwiftData Error in Preview"
 ---
 
 
@@ -14,7 +14,7 @@ Consider we have a preview like the one below:
 
 ```swift
 #Preview {
-  @Previewable @State var modelContainer = try! ModelContainer.previewContainer()
+  let modelContainer = try! ModelContainer.previewContainer()
 
   SomeView().modelContainer(modelContainer)
 }
@@ -52,17 +52,24 @@ So how to resolve the problem? Since the reason is every update of the preview w
 
 ```swift
 extension ModelContainer{
-  static let previewContainer:  ModelContainer? =  {
+  static let previewContainer:  ModelContainer =  {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try? ModelContainer(for: [Record.self], configurations: config)
+    let container = try ModelContainer(for: [Record.self], configurations: config)
 
     Task { @MainActor in
-      let context = container?.mainContext
+      let context = container.mainContext
       context.insert(Record())
     }
 
     return container
  }()
+}
+
+```
+
+```swift
+#Preview {
+  SomeView().modelContainer(ModelContainer.previewContainer)
 }
 ```
 
